@@ -15,47 +15,16 @@
  *  PERFORMANCE OF THIS SOFTWARE.
  */
 const Ae = require('@aeternity/aepp-sdk').Universal;
-const bs58 = require('bs58');
+const testutils = require('./utils.js');
+const config = require('./config');
 
-const config = {
-  host: "http://localhost:3001/",
-  internalHost: "http://localhost:3001/internal/",
-  gas: 15790000,
-  ttl: 55,
-  networkId: 'ae_devnet'
-}
-/*
-const config = {
-  host: "https://sdk-testnet.aepps.com",
-  internalHost: "https://sdk-testnet.aepps.com",
-  gas: 1000000,
-  ttl: 100,
-  networkId: 'ae_uat'
-}
-*/
-console.log(wallets);
+testutils.log(wallets);
 const ownerKeyPair = wallets[0];
-describe('Instatrust Contract', () => {
+describe('Integration between Contract', () => {
 
   let owner;
   let tokenContract;
   let saleContract;
-  let getHexAddress= (strAddr) => {
-    return '0x' + bs58.decode(strAddr.substr(3)).toString('hex');
-  }
-
-
-  //Create a asynchronous read call for our smart contract
-  async function contractCall(contractAddress,func, args, value, types) {
-    const calledSet = await owner.contractCall(contractAddress,
-    'sophia-address',contractAddress, func,
-    {args, options: {amount:value}}).catch(async e => {
-      const decodedError = await owner.contractDecodeData(types,
-      e.returnValue).catch(e => console.error(e));
-    });
-
-    return calledSet;
-  }
 
   before(async () => {
     
@@ -71,12 +40,12 @@ describe('Instatrust Contract', () => {
   
   it('Deploying Token Contract', async () => {
     let contractSource = utils.readFileRelative('./contracts/Token.aes', "utf-8"); // Read the aes file
-    console.log('Compiling Contract Source');
+    testutils.log('Compiling Contract Source');
     const compiledContract = await owner.contractCompile(contractSource, { // Compile it
       gas: config.gas
     })
-    console.log('Preparing Deployment Contract Bytecode');
-    //console.log(compiledContract);
+    testutils.log('Preparing Deployment Contract Bytecode');
+    //testutils.log(compiledContract);
     const deployPromise = compiledContract.deploy({ // Deploy it
       options: {
         ttl: config.ttl,
@@ -84,23 +53,23 @@ describe('Instatrust Contract', () => {
       initState: `("TrustToken","TT",18,10000)`,
       abi: "sophia"
     });
-    console.log('Deploying Contract Bytecode');
+    testutils.log('Deploying Contract Bytecode');
     tokenContract=await assert.isFulfilled(deployPromise, 'Could not deploy the Token Smart Contract'); // Check it is deployed
-    console.log('Contract deployed at: ' + tokenContract.address);
-    console.log('Token Address:'+ getHexAddress(tokenContract.address));
+    testutils.log('Contract deployed at: ' + tokenContract.address);
+    testutils.log('Token Address:'+ testutils.getHexAddress(tokenContract.address));
     
   });
 
   it('Deploying Crowdsale Contract', async () => {
     let contractSource = utils.readFileRelative('./contracts/Crowdsale.aes', "utf-8"); // Read the aes file
-    console.log('Compiling Contract Source');
+    testutils.log('Compiling Contract Source');
     const compiledContract = await owner.contractCompile(contractSource, { // Compile it
       gas: config.gas
     })
-    console.log('Preparing Deployment Contract Bytecode');
+    testutils.log('Preparing Deployment Contract Bytecode');
 
-    const ownerHexKey = getHexAddress(ownerKeyPair.publicKey);
-    const tokenHexAddr = getHexAddress(tokenContract.address);
+    const ownerHexKey = testutils.getHexAddress(ownerKeyPair.publicKey);
+    const tokenHexAddr = testutils.getHexAddress(tokenContract.address);
     const deployPromise = compiledContract.deploy({ // Deploy it
       options: {
         ttl: config.ttl,
@@ -108,17 +77,17 @@ describe('Instatrust Contract', () => {
       initState:  `("${ownerHexKey}", "${tokenHexAddr}")`,
       abi: "sophia"
     });
-    console.log('Deploying Contract Bytecode');
+    testutils.log('Deploying Contract Bytecode');
     saleContract = await assert.isFulfilled(deployPromise, 'Could not deploy the Crowdsale Smart Contract'); // Check it is deployed
-    console.log('Contract deployed at: ' + saleContract.address);
-    console.log('Deployed Sale Contract with beneficiary: ' + ownerKeyPair.publicKey);
-    console.log('Sale Address:'+ getHexAddress(saleContract.address));
+    testutils.log('Contract deployed at: ' + saleContract.address);
+    testutils.log('Deployed Sale Contract with beneficiary: ' + ownerKeyPair.publicKey);
+    testutils.log('Sale Address:'+ testutils.getHexAddress(saleContract.address));
   });
 
   
   it('Load Sale Contract with Tokens', async() => {
-    //console.log(tokenContract);
-    const saleHexAddr = getHexAddress(saleContract.address);
+    //testutils.log(tokenContract);
+    const saleHexAddr = testutils.getHexAddress(saleContract.address);
     
     const transferPromise=tokenContract.call('transfer', {
         args:`(${saleHexAddr},5000)`,
@@ -137,22 +106,21 @@ describe('Instatrust Contract', () => {
   });
 
   it('Purchase some tokens', async() => {
-    //console.log(tokenContract);
-    const buyerHexAddr = getHexAddress(ownerKeyPair.publicKey);
-    
-    const buyPromise=saleContract.call('buyTokens', {
-        args:`(25)`,
+    //testutils.log(tokenContract);
+    const buyerHexAddr = testutils.getHexAddress(wallets[0].publicKey);
+    testutils.log(`Buying Tokens for ${wallets[0].publicKey}`);
+    const buyPromise=saleContract.call('buyTokensFor', {
+        args:`(${buyerHexAddr},25)`,
         options: {
-          ttl: config.ttl
-        },
-        amount: 25,
-        deposit: 50
+          ttl: config.ttl,
+          amount: 25 
+        }
       });
-    assert.isFulfilled(buyPromise, 'Could not call buyTokens');
+    assert.isFulfilled(buyPromise, 'Could not call buyTokensFor');
     const taskResult = await buyPromise;
     //Assert
-    const taskResultDecoded = await taskResult.decode("string");
-    assert.equal(taskResultDecoded.value, 1);
+    const taskResultDecoded = await taskResult.decode("int");
+    assert.equal(taskResultDecoded.value, 25);
     
     
 
@@ -160,17 +128,17 @@ describe('Instatrust Contract', () => {
 
   it('Deploying Escrow Contract', async () => {
     let contractSource = utils.readFileRelative('./contracts/Escrow.aes', "utf-8"); // Read the aes file
-    console.log('Compiling Contract Source');
+    testutils.log('Compiling Contract Source');
     const compiledContract = await owner.contractCompile(contractSource, { // Compile it
       gas: config.gas
     })
-    console.log('Preparing Deployment Contract Bytecode');
+    testutils.log('Preparing Deployment Contract Bytecode');
     const deployPromise = compiledContract.deploy({ // Deploy it
       options: {
         ttl: config.ttl,
       }
     });
-    console.log('Deploying Contract Bytecode');
+    testutils.log('Deploying Contract Bytecode');
     await assert.isFulfilled(deployPromise, 'Could not deploy the Escrow Smart Contract'); // Check it is deployed
     
     

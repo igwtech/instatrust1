@@ -15,28 +15,13 @@
  *  PERFORMANCE OF THIS SOFTWARE.
  */
 const Ae = require('@aeternity/aepp-sdk').Universal;
-const testutils = require('./utils.js');
-const config = {
-  host: "http://localhost:3001/",
-  internalHost: "http://localhost:3001/internal/",
-  gas: 15790000,
-  ttl: 55,
-  networkId: 'ae_devnet'
-}
-/*
-const config = {
-  host: "https://sdk-testnet.aepps.com",
-  internalHost: "https://sdk-testnet.aepps.com",
-  gas: 1000000,
-  ttl: 100,
-  networkId: 'ae_uat'
-}
-*/
+const testutils = require('./utils');
+const config = require('./config');
 
 
 
 
-console.log(wallets);
+testutils.log(wallets);
 const ownerKeyPair = wallets[0];
 describe('Token Contract', () => {
 
@@ -57,12 +42,12 @@ describe('Token Contract', () => {
   
   it('Deploying Token Contract', async () => {
     contractSource = utils.readFileRelative('./contracts/Token.aes', "utf-8"); // Read the aes file
-    console.log('Compiling Contract Source');
+    testutils.log('Compiling Contract Source');
     const compiledContract = await owner.contractCompile(contractSource, { // Compile it
       gas: config.gas
     })
-    console.log('Preparing Deployment Contract Bytecode');
-    //console.log(compiledContract);
+    testutils.log('Preparing Deployment Contract Bytecode');
+    //testutils.log(compiledContract);
     const deployPromise = compiledContract.deploy({ // Deploy it
       options: {
         ttl: config.ttl,
@@ -70,10 +55,10 @@ describe('Token Contract', () => {
       initState: `("TrustToken","TT",18,10000)`,
       abi: "sophia"
     });
-    console.log('Deploying Contract Bytecode');
+    testutils.log('Deploying Contract Bytecode');
     const deployedContract=await assert.isFulfilled(deployPromise, 'Could not deploy the Token Smart Contract'); // Check it is deployed
-    console.log('Contract deployed at: ' + deployedContract.address);
-    console.log('Token Address:'+ testutils.getHexAddress(deployedContract.address));
+    testutils.log('Contract deployed at: ' + deployedContract.address);
+    testutils.log('Token Address:'+ testutils.getHexAddress(deployedContract.address));
   });
   describe('Interacting with Contract', async () => {
     let deployedContract;

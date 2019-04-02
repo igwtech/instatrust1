@@ -1,7 +1,8 @@
-const bs58 = require('bs58');
+const helpers = require('@aeternity/aepp-sdk/es/tx/builder/helpers');
+
 module.exports = {
     getHexAddress: (strAddr) => {
-        return '0x' + bs58.decode(strAddr.substr(3)).toString('hex');
+        return '0x' + helpers.decode(strAddr).toString('hex');
     },
     callStatic: async (contract,func,strArgs,strTypes) => {
         const callPromise=contract.call(func, {
@@ -30,4 +31,5 @@ module.exports = {
         const taskResultDecoded = await taskResult.decode(strTypes);
         return taskResultDecoded.value;
     },
+    log: (msg) => (msg instanceof String)?console.log('   >'+msg):console.log(msg)
 }

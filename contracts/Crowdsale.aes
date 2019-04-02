@@ -11,7 +11,9 @@ contract Crowdsale =
   datatype event =
       TokenPurchase(indexed address, indexed address, indexed int, indexed amount)
   */
-  
+  public function wallet() : address = state.wallet
+  public function token() : Token = state.token
+
   public stateful function init(_wallet : address, _token : Token) = 
     require(_wallet != #0, "Invalid Address")
     { wallet = _wallet,
@@ -21,10 +23,17 @@ contract Crowdsale =
     preValidatePurchase'(Call.caller, Call.value)
     processPurchase'(Call.caller,_tokens)
     forwardFunds'()
+    _tokens
 
-  private stateful function preValidatePurchase'(_beneficiary : address,_amountETH : int) =
+  public stateful function buyTokensFor(_recipient: address, _tokens : int) = 
+    preValidatePurchase'(_recipient, Call.value)
+    processPurchase'(_recipient,_tokens)
+    forwardFunds'()
+    _tokens
+
+  private stateful function preValidatePurchase'(_beneficiary : address, _amountAEONS : int) =
     require(_beneficiary != #0, "Invalid Address")
-    require(_amountETH > 0, "Value is sub zero")
+    require(_amountAEONS > 0, "Value is sub zero")
 
   private stateful function processPurchase'(_beneficiary : address,_tokenAmount : int) =
     deliverTokens'(_beneficiary, _tokenAmount)
