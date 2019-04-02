@@ -1,0 +1,85 @@
+contract Token =
+  public function transfer : (address, int) => bool
+  public function transfer_from : (address, address, int) => bool
+  public function balance_of : (address) => int 
+
+contract Escrow = 
+  //datatype statust = Created | Locked | Inactive
+  type statust = int // 0-Created | 1-Locked | 2-Inactive
+  record state = {
+    token               : Token,
+    seller              : address,
+    buyer               : address,
+    value               : int,
+    status              : statust }    
+
+  public stateful function init(token : Token, tokens : int ) = 
+   require(tokens > 0, "Value is sub zero")
+   {
+    token   = token,
+    seller  = Call.caller,
+    buyer   = #0,    
+    value   = tokens,
+    status  = 0 }
+
+    
+  private function onlyBuyer() =
+   require(Call.caller == state.buyer, "It is only allowed for the buyer")
+
+  private function onlySeller() =
+   require(Call.caller == state.seller, "It is only allowed for the seller")
+
+  private function inState(_status : statust) =
+   require( state.status == _status, "the status is not allowed")
+    
+
+  public function getBalance() : int = state.token.balance_of(Contract.address) // saber el balance de tokens que tiene el contrato
+
+  /// Abortar la compra y reclamar los tokens.
+  /// Sólo puede ser llamado por el vendedor antes
+  /// El contrato está bloqueado.
+  public stateful function abortar()  =
+   onlySeller()             // compruebo que el vendedor es el que llama a esta funcion 
+   inState(0)               // compruebo que el status esta en Created 
+   
+   /* Chain.event(Aborted()); /// emito un evento */
+   put(state{status = 2})
+
+   state.token.transfer_from(Contract.address,state.seller,state.value)
+
+  /// Confirmar la compra como comprador.
+  /// El Token estará bloqueado hasta que confirmReceived (confirme el recibido)
+  public stateful function confirmPurchase(tokens : int)  =
+    inState(0)  // compruebo que el status este en Created
+    
+    /* Chain.event(PurchaseConfirmed());   /// Emito un evento para publicar la transaccion de compra */
+    put(state{
+        buyer   = Call.caller,     
+        status  = 1,     
+        value   = state.value + tokens })
+
+    /// Confirme que usted (el comprador) recibió el artículo.
+    /// Esto liberará los tokens bloqueado.
+  public stateful function confirmReceived(_rate : int) =
+    onlyBuyer()             // compruebo que el comprador es el que llama a esta funcion
+    inState(1)              // compruebo que el status esta en Locked
+		
+    /* Chain.event(ItemReceived());    /// Emito un evento para publicar la transaccion de recibido */
+	    
+    put(state{status  =   2 })
+
+    let subTokens   = state.value / 2          // divido el value entre dos
+    let rate2       = subTokens * _rate / 100  // Obtengo el porcentaje 
+    let totalTokens = subTokens - rate2        // Resto al value el porcentaje
+	    
+    state.token.transfer_from(Contract.address,state.buyer,totalTokens)     // Transfiero los tokens al comprador
+    state.token.transfer_from(Contract.address,state.seller,totalTokens)    // Transfiero los tokens al vendedor
+	
+    /** CORREGIR EL CODIGO
+        *balance = token.balanceOf(address(this)); 
+        *token.transferFrom(address(this),funds,balance); // Transfiero el resto del balance a la cuenta de los fondos
+    */
+		
+  private function require(b : bool, err : string) =
+   if(!b)
+    abort(err)

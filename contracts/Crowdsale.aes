@@ -1,0 +1,40 @@
+contract Token =
+  public function transfer : (address, int) => bool
+  public function transfer_from : (address, address, int) => bool
+
+contract Crowdsale =
+  
+  record state = {
+      wallet    : address,
+      token     : Token }
+  /*
+  datatype event =
+      TokenPurchase(indexed address, indexed address, indexed int, indexed amount)
+  */
+  
+  public stateful function init(_wallet : address, _token : Token) = 
+    require(_wallet != #0, "Invalid Address")
+    { wallet = _wallet,
+      token = _token }
+
+  public stateful function buyTokens(_tokens : int) = 
+    preValidatePurchase'(Call.caller, Call.value)
+    processPurchase'(Call.caller,_tokens)
+    forwardFunds'()
+
+  private stateful function preValidatePurchase'(_beneficiary : address,_amountETH : int) =
+    require(_beneficiary != #0, "Invalid Address")
+    require(_amountETH > 0, "Value is sub zero")
+
+  private stateful function processPurchase'(_beneficiary : address,_tokenAmount : int) =
+    deliverTokens'(_beneficiary, _tokenAmount)
+
+  private stateful function deliverTokens'(_beneficiary : address,_tokenAmount : int) =
+    state.token.transfer(_beneficiary, _tokenAmount)
+  
+  private stateful function forwardFunds'() =
+    Chain.spend(state.wallet,Call.value)
+        
+  private function require(b : bool, err : string) =
+    if(!b)
+      abort(err)

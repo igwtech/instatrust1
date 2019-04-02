@@ -1,0 +1,88 @@
+contract Token =
+  record state = { 
+    owner           : address,              
+    name            : string,               
+    symbol          : string,               
+    decimals        : int,                  
+    total_supply    : int,                  
+    balances        : map(address, int),    
+    allowed         : map((address,address), int) }
+ 
+  public stateful function  init(name : string, symbol : string, decimals : int, total_supply : int) = 
+    let balance : map(address, int) = { [Call.caller] = total_supply}
+    { owner                   = Call.caller,
+      name                    = name,
+      symbol                  = symbol,
+      decimals                = decimals,
+      total_supply            = total_supply,
+      balances                = balance,
+      allowed                 = {} }
+    
+
+  public function name() : string = state.name
+  public function symbol() : string = state.symbol
+  public function decimals() : int = state.decimals
+  public function total_supply() : int = state.total_supply
+  
+  public function balance_of(who : address) : int = lookup_by_address(who, state.balances, 0)
+
+  private function lookup_by_address(k : address, m, v) =
+  	switch(Map.lookup(k, m))
+	    None    => v
+	    Some(x) => x
+  
+  public function allowance(owner: address, spender: address) : int =
+    switch(Map.lookup((owner, spender), state.allowed))
+	    None    => 0
+	    Some(x) => x
+
+  private stateful function transfer'(from: address, to: address, value: int) : bool =
+    require(value > 0, "Value is sub zero")
+    require(value =< balance_of(from), "Not enough balance")
+    require(to != #0, "Invalid address") 
+
+    put(state{
+      balances[from] = sub(balance_of(from), value),
+      balances[to] = add(balance_of(to), value)})
+
+    true
+  
+  public stateful function transferFrom(from : address, to : address, value : int) : bool =
+    require(state.allowed[(from, Call.caller)] >= value, "Value is bigger than allowed")
+    
+    put(state{allowed[(from, Call.caller)] = sub(state.allowed[(from, Call.caller)], value)})
+    transfer'(from, to, value)
+
+    true
+
+  public stateful function transfer(to: address, value: int) : bool =
+    transfer'(Call.caller, to, value)
+
+  public stateful function approve(spender: address, value: int) : bool =
+    require(value > 0, "Value is sub zero")
+    require(spender != #0, "Invalid spender address")
+
+    put(state{allowed[(Call.caller,spender)] = value})
+
+    true
+
+  public stateful function burn(value: int) : bool =
+    require(balance_of(Call.caller) >= value, "Burned amount is less than account balance")
+
+    put(state{total_supply = sub(state.total_supply, value),
+      balances[Call.caller] = sub(balance_of(Call.caller), value)})
+
+    true
+
+  private function add(a : int, b : int) : int =
+    let c : int = a + b
+    require(c >= a, "Error")
+    c
+
+  private function sub(a : int, b : int) : int =
+    require(b =< a, "Error")
+    a - b
+
+  private function require(b : bool, err : string) =
+    if(!b)
+      abort(err)
