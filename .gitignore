@@ -1,0 +1,5 @@
+node_modules
+package-lock.json
+*.log
+aepp-cli-js
+.forgae-store
